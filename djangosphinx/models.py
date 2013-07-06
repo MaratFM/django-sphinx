@@ -23,7 +23,7 @@ from datetime import datetime, date
 
 # server settings
 SPHINX_SERVER           = getattr(settings, 'SPHINX_SERVER', 'localhost')
-SPHINX_PORT             = getattr(settings, 'SPHINX_PORT', 3312)
+SPHINX_PORT             = int(getattr(settings, 'SPHINX_PORT', 3312))
 
 # These require search API 275 (Sphinx 0.9.8)
 SPHINX_RETRIES          = int(getattr(settings, 'SPHINX_RETRIES', 0))
@@ -466,7 +466,7 @@ class SphinxQuerySet(object):
         
         def _handle_filters(filter_list, exclude=False):
             for name, values in filter_list.iteritems():
-                if values == [None]:
+                if values is None:
                     # ignore filters where value is None
                     continue
                 parts = len(name.split('__'))
