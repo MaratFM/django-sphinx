@@ -12,6 +12,7 @@ try:
 except ImportError:
     from django.utils import _decimal as decimal # for Python 2.3
 
+from django.db import models
 from django.db.models.query import QuerySet, Q
 from django.conf import settings
 
@@ -184,10 +185,14 @@ class SphinxProxy(object):
 
 def to_sphinx(value):
     "Convert a value into a sphinx query value"
-    if isinstance(value, date) or isinstance(value, datetime):
+    if value is None:
+        return None
+    elif isinstance(value, date) or isinstance(value, datetime):
         return int(time.mktime(value.timetuple()))
     elif isinstance(value, decimal.Decimal) or isinstance(value, float):
         return float(value)
+    elif isinstance(value, models.Model):
+        return value.id
     return int(value)
 
 class SphinxQuerySet(object):
@@ -197,6 +202,9 @@ class SphinxQuerySet(object):
         self._select_related        = False
         self._select_related_args   = {}
         self._select_related_fields = []
+        self._prefetch_related = False
+        self._prefetch_related_args = {}
+        self._prefetch_related_fields = []
         self._filters               = {}
         self._excludes              = {}
         self._extra                 = {}
@@ -382,6 +390,19 @@ class SphinxQuerySet(object):
             _select_related_fields=_args,
             _select_related_args=_kwargs,
         )
+
+    # pass these thru on the queryset and let django handle it
+    def prefetch_related(self, *args, **kwargs):
+        _args = self._prefetch_related_fields[:]
+        _args.extend(args)
+        _kwargs = self._prefetch_related_args.copy()
+        _kwargs.update(kwargs)
+        
+        return self._clone(
+            _prefetch_related=True,
+            _prefetch_related_fields=_args,
+            _prefetch_related_args=_kwargs,
+        )
     
     def extra(self, **kwargs):
         extra = self._extra.copy()
@@ -549,6 +570,8 @@ class SphinxQuerySet(object):
         queryset = self.model._default_manager
         if self._select_related:
             queryset = queryset.select_related(*self._select_related_fields, **self._select_related_args)
+        if self._prefetch_related:
+            queryset = queryset.prefetch_related(*self._prefetch_related_fields, **self._prefetch_related_args)
         if self._extra:
             queryset = queryset.extra(**self._extra)
         return queryset.get(**kwargs)
@@ -573,6 +596,8 @@ class SphinxQuerySet(object):
                 queryset = self.get_query_set(self.model)
                 if self._select_related:
                     queryset = queryset.select_related(*self._select_related_fields, **self._select_related_args)
+                if self._prefetch_related:
+                    queryset = queryset.prefetch_related(*self._prefetch_related_fields, **self._prefetch_related_args)
                 if self._extra:
                     queryset = queryset.extra(**self._extra)
 
@@ -796,8 +821,9 @@ class SphinxRelation(SphinxSearch):
                     ids.extend()
             qs = self.get_query_set(self.model).filter(pk__in=set(ids))
             if self._select_related:
-                qs = qs.select_related(*self._select_related_fields,
-                                       **self._select_related_args)
+                qs = qs.select_related(*self._select_related_fields, **self._select_related_args)
+            if self._prefetch_related:
+                qs = qs.prefetch_related(*self._prefetch_related_fields, **self._prefetch_related_args)
             if self._extra:
                 qs = qs.extra(**self._extra)
             queryset = dict([(o.id, o) for o in qs])
