@@ -466,6 +466,9 @@ class SphinxQuerySet(object):
         
         def _handle_filters(filter_list, exclude=False):
             for name, values in filter_list.iteritems():
+                if values is None:
+                    # ignore filters where value is None
+                    continue
                 parts = len(name.split('__'))
                 if parts > 2:
                     raise NotImplementedError, 'Related object and/or multiple field lookups not supported'
@@ -532,7 +535,10 @@ class SphinxQuerySet(object):
 
         if self._rankmode:
             params.append('rankmode=%s' % (self._rankmode,))
-            client.SetRankingMode(self._rankmode)
+            if sphinxapi.VER_COMMAND_SEARCH >= 0x11D and isinstance(self._rankmode, basestring):
+                client.SetRankingMode(sphinxapi.SPH_RANK_EXPR, self._rankmode)
+            else:
+                client.SetRankingMode(self._rankmode)
 
         if not self._limit > 0:
             # Fix for Sphinx throwing an assertion error when you pass it an empty limiter
