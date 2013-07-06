@@ -3,4 +3,5 @@ dist/
 *.pyc
 django_sphinx.egg-info/
 .idea
+.DS_Store
 ._.DS_Store
